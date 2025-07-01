@@ -1,0 +1,33 @@
+{
+    "name": "discord-ts-template",
+    "version": "1.0.0",
+    "description": "A discord.js typescript template to quickstart the developement of your discord bot",
+    "main": "build/index.js",
+    "scripts": {
+        "start": "npm run build && node build/index.js",
+        "build": "rimraf ./build && tsc",
+        "dev": "nodemon src/index.ts"
+    },
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/0xHouss/discord-ts-template"
+    },
+    "keywords": [],
+    "author": "0xHouss",
+    "license": "ISC",
+    "bugs": {
+        "url": "https://github.com/OxHouss/discord-ts-template/issues"
+    },
+    "homepage": "https://github.com/OxHouss/discord-ts-template#README",
+    "devDependencies": {
+        "@types/node": "^22.13.1",
+        "nodemon": "^3.1.9",
+        "rimraf": "^6.0.1",
+        "ts-node": "^10.9.2",
+        "typescript": "^5.7.3"
+    },
+    "dependencies": {
+        "discord.js": "^14.17.3",
+        "zod": "^3.24.1"
+    }
+}
