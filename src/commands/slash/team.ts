@@ -8,11 +8,27 @@ const ephemeral = false;
 
 async function createTeam(interaction: ChatInputCommandInteraction<CacheType>) {
   const teamName = interaction.options.getString('name', true);
-  const secondMember = interaction.options.getUser('2nd_member', true);
-  const thirdMember = interaction.options.getUser('3rd_member', true);
-  const fourthMember = interaction.options.getUser('4th_member', true);
+  const secondMemberUser = interaction.options.getUser('2nd_member', true);
+  const thirdMemberUser = interaction.options.getUser('3rd_member', true);
+  const fourthMemberUser = interaction.options.getUser('4th_member', true);
 
   const guild = interaction.guild;
+  const leader = guild?.members.cache.get(interaction.user.id);
+  const secondMember = guild?.members.cache.get(secondMemberUser.id);
+  const thirdMember = guild?.members.cache.get(thirdMemberUser.id);
+  const fourthMember = guild?.members.cache.get(fourthMemberUser.id);
+
+  if (!leader || !secondMember || !thirdMember || !fourthMember) {
+    const embed = new EmbedBuilder()
+      .setColor("Red")
+      .setTitle('Member Not Found')
+      .setDescription('One or more members are not found in the server. Please ensure all members are in the server.');
+
+    return interaction.reply({
+      embeds: [embed],
+      ephemeral
+    });
+  }
 
   if (!guild) {
     const embed = new EmbedBuilder()
@@ -26,7 +42,7 @@ async function createTeam(interaction: ChatInputCommandInteraction<CacheType>) {
     });
   }
 
-  if (hasDuplicates([interaction.user.id, secondMember.id, thirdMember.id, fourthMember.id])) {
+  if (hasDuplicates([leader.id, secondMember.id, thirdMember.id, fourthMember.id])) {
     const embed = new EmbedBuilder()
       .setColor("Red")
       .setTitle('Duplicate Members !')
@@ -38,13 +54,13 @@ async function createTeam(interaction: ChatInputCommandInteraction<CacheType>) {
     });
   }
 
-  const leader = await prisma.member.findUnique({ where: { id: interaction.user.id }, include: { team: true } });
+  const leaderDb = await prisma.member.findUnique({ where: { id: interaction.user.id }, include: { team: true } });
 
-  if (leader?.team) {
+  if (leaderDb?.team) {
     const embed = new EmbedBuilder()
       .setColor("Red")
       .setTitle('You are already in a Team !')
-      .setDescription(`You are already in a team: **${leader.team.name}**.`);
+      .setDescription(`You are already in a team: **${leaderDb.team.name}**.`);
 
     return interaction.reply({
       embeds: [embed],
@@ -66,7 +82,7 @@ async function createTeam(interaction: ChatInputCommandInteraction<CacheType>) {
     });
   }
 
-  const teamMembers = [interaction.user, secondMember, thirdMember, fourthMember];
+  const teamMembers = [interaction.user, secondMemberUser, thirdMemberUser, fourthMemberUser];
 
   const alreadyInTeam = []
 
@@ -91,6 +107,18 @@ async function createTeam(interaction: ChatInputCommandInteraction<CacheType>) {
 
   const moderatorPerms: OverwriteResolvable = {
     id: ENV.MODERATOR_ROLE_ID,
+    allow: [
+      "ManageChannels",
+      "ManageRoles",
+      "ViewChannel",
+      "ManageMessages",
+      "MentionEveryone",
+      "ManageThreads",
+    ],
+  }
+
+  const mentorPerms: OverwriteResolvable = {
+    id: ENV.MENTOR_ROLE_ID,
     allow: [
       "ManageChannels",
       "ManageRoles",
@@ -147,31 +175,71 @@ async function createTeam(interaction: ChatInputCommandInteraction<CacheType>) {
     ]
   }
 
-  const category = await interaction.guild?.channels.create({
-    name: teamName, type: ChannelType.GuildCategory, permissionOverwrites: [
-      moderatorPerms,
-      leaderPerms,
-      {
-        ...memberPerms,
-        id: secondMember.id,
-      },
-      {
-        ...memberPerms,
-        id: thirdMember.id,
-      },
-      {
-        ...memberPerms,
-        id: fourthMember.id,
-      },
-      everyonePerms
-    ]
-  })
+  let category;
 
-  if (!category) {
+  try {
+    category = await guild.channels.create({
+      name: teamName, type: ChannelType.GuildCategory, permissionOverwrites: [
+        moderatorPerms,
+        mentorPerms,
+        leaderPerms,
+        {
+          ...memberPerms,
+          id: secondMemberUser.id,
+        },
+        {
+          ...memberPerms,
+          id: thirdMemberUser.id,
+        },
+        {
+          ...memberPerms,
+          id: fourthMemberUser.id,
+        },
+        everyonePerms
+      ]
+    })
+
+    category.children.create({
+      name: teamName,
+      type: ChannelType.GuildText,
+    })
+
+    category.children.create({
+      name: teamName,
+      type: ChannelType.GuildVoice,
+    })
+  } catch (error) {
+    console.error('Error creating category:', error);
     const embed = new EmbedBuilder()
       .setColor("Red")
       .setTitle('Error Creating Category')
       .setDescription('An error occurred while trying to create the team category. Please try again later.');
+
+    return interaction.reply({
+      embeds: [embed],
+      ephemeral
+    });
+  }
+
+  leader.roles.add(ENV.TEAM_LEADER_ROLE_ID);
+
+  let teamRole
+
+  try {
+    teamRole = await guild.roles.create({
+      name: teamName
+    })
+
+    leader.roles.add(teamRole);
+    secondMember.roles.add(teamRole);
+    thirdMember.roles.add(teamRole);
+    fourthMember.roles.add(teamRole);
+  } catch (error) {
+    console.error('Error creating team role:', error);
+    const embed = new EmbedBuilder()
+      .setColor("Red")
+      .setTitle('Error Creating Team Role')
+      .setDescription('An error occurred while trying to create the team role. Please try again later.');
 
     return interaction.reply({
       embeds: [embed],
@@ -198,7 +266,8 @@ async function createTeam(interaction: ChatInputCommandInteraction<CacheType>) {
         members: {
           connect: teamMembers.map(member => ({ id: member.id }))
         },
-        categoryId: category.id
+        categoryId: category.id,
+        roleId: teamRole.id
       }
     });
   } catch (error) {
@@ -217,7 +286,7 @@ async function createTeam(interaction: ChatInputCommandInteraction<CacheType>) {
   const embed = new EmbedBuilder()
     .setColor("Green")
     .setTitle('Team Created Successfully!')
-    .setDescription(`Your team **${teamName}** has been created successfully!\nMembers:\n- <@${interaction.user.id}> (Leader)\n- <@${secondMember.id}>\n- <@${thirdMember.id}>\n- <@${fourthMember.id}>\n\nA new category has been created for your team: **${teamName}**. As the team leader, you can manage your team channels there.`);
+    .setDescription(`Your team **${teamName}** has been created successfully!\nMembers:\n- <@${interaction.user.id}> (Leader)\n- <@${secondMemberUser.id}>\n- <@${thirdMemberUser.id}>\n- <@${fourthMemberUser.id}>\n\nA new category has been created for your team: **${teamName}**. As the team leader, you can manage your team channels there.`);
 
   return interaction.reply({
     embeds: [embed],
