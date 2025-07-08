@@ -1,4 +1,4 @@
-import { CacheType, ChannelType, ChatInputCommandInteraction, EmbedBuilder, OverwriteResolvable, SlashCommandBuilder } from 'discord.js';
+import { CacheType, CategoryChannel, ChannelType, ChatInputCommandInteraction, EmbedBuilder, OverwriteResolvable, SlashCommandBuilder } from 'discord.js';
 import { prisma } from '../../lib/prisma';
 import { hasDuplicates } from '../../lib/utils';
 import SlashCommand from '../../templates/SlashCommand';
@@ -385,16 +385,23 @@ async function disbandTeam(interaction: ChatInputCommandInteraction<CacheType>) 
     });
   }
 
-  const category = await interaction.guild?.channels.fetch(dbTeam.categoryId);
+  const category = await (await guild.channels.fetch(dbTeam.categoryId))?.fetch();
 
-  if (category) {
-    const childrenChannels = guild.channels.cache.filter(c => c.parentId === category.id);
-
-    for (const channel of childrenChannels.values())
+  if (category && category instanceof CategoryChannel) {
+    for (const channel of category.children.cache.values())
       await channel.delete();
 
     await category.delete();
   }
+
+  const teamRole = await guild.roles.fetch(dbTeam.roleId);
+
+  if (teamRole) 
+    await teamRole.delete();
+
+  const leader = await guild.members.fetch(dbTeam.leaderId);
+
+  leader.roles.remove(ENV.TEAM_LEADER_ROLE_ID);
 
   try {
     await prisma.team.delete({
