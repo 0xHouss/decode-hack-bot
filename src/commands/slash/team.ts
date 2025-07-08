@@ -120,10 +120,7 @@ async function createTeam(interaction: ChatInputCommandInteraction<CacheType>) {
   const mentorPerms: OverwriteResolvable = {
     id: ENV.MENTOR_ROLE_ID,
     allow: [
-      "ManageChannels",
-      "ManageRoles",
       "ViewChannel",
-      "ManageMessages",
       "MentionEveryone",
       "ManageThreads",
     ],
