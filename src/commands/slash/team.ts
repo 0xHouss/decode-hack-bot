@@ -105,6 +105,33 @@ async function createTeam(interaction: ChatInputCommandInteraction<CacheType>) {
     });
   }
 
+  let teamRole
+
+  try {
+    teamRole = await guild.roles.create({
+      name: teamName,
+      mentionable: true,
+    })
+
+    leader.roles.add(teamRole);
+    secondMember.roles.add(teamRole);
+    thirdMember.roles.add(teamRole);
+    fourthMember.roles.add(teamRole);
+  } catch (error) {
+    console.error('Error creating team role:', error);
+    const embed = new EmbedBuilder()
+      .setColor("Red")
+      .setTitle('Error Creating Team Role')
+      .setDescription('An error occurred while trying to create the team role. Please try again later.');
+
+    return interaction.reply({
+      embeds: [embed],
+      ephemeral
+    });
+  }
+
+  leader.roles.add(ENV.TEAM_LEADER_ROLE_ID);
+
   const moderatorPerms: OverwriteResolvable = {
     id: ENV.MODERATOR_ROLE_ID,
     allow: [
@@ -147,13 +174,12 @@ async function createTeam(interaction: ChatInputCommandInteraction<CacheType>) {
   }
 
   const memberPerms: OverwriteResolvable = {
-    id: "",
+    id: teamRole.id,
     allow: [
       'ViewChannel',
       'UseEmbeddedActivities',
       'UseExternalApps',
       'ReadMessageHistory',
-      'MentionEveryone',
       'CreatePublicThreads',
       'CreatePrivateThreads',
     ],
@@ -161,6 +187,7 @@ async function createTeam(interaction: ChatInputCommandInteraction<CacheType>) {
       'CreateInstantInvite',
       'UseExternalEmojis',
       'UseExternalStickers',
+      'MentionEveryone',
     ]
   }
 
@@ -169,6 +196,7 @@ async function createTeam(interaction: ChatInputCommandInteraction<CacheType>) {
     allow: [],
     deny: [
       'ViewChannel',
+      'MentionEveryone'
     ]
   }
 
@@ -180,18 +208,7 @@ async function createTeam(interaction: ChatInputCommandInteraction<CacheType>) {
         moderatorPerms,
         mentorPerms,
         leaderPerms,
-        {
-          ...memberPerms,
-          id: secondMemberUser.id,
-        },
-        {
-          ...memberPerms,
-          id: thirdMemberUser.id,
-        },
-        {
-          ...memberPerms,
-          id: fourthMemberUser.id,
-        },
+        memberPerms,
         everyonePerms
       ]
     })
@@ -211,32 +228,6 @@ async function createTeam(interaction: ChatInputCommandInteraction<CacheType>) {
       .setColor("Red")
       .setTitle('Error Creating Category')
       .setDescription('An error occurred while trying to create the team category. Please try again later.');
-
-    return interaction.reply({
-      embeds: [embed],
-      ephemeral
-    });
-  }
-
-  leader.roles.add(ENV.TEAM_LEADER_ROLE_ID);
-
-  let teamRole
-
-  try {
-    teamRole = await guild.roles.create({
-      name: teamName
-    })
-
-    leader.roles.add(teamRole);
-    secondMember.roles.add(teamRole);
-    thirdMember.roles.add(teamRole);
-    fourthMember.roles.add(teamRole);
-  } catch (error) {
-    console.error('Error creating team role:', error);
-    const embed = new EmbedBuilder()
-      .setColor("Red")
-      .setTitle('Error Creating Team Role')
-      .setDescription('An error occurred while trying to create the team role. Please try again later.');
 
     return interaction.reply({
       embeds: [embed],
@@ -393,7 +384,7 @@ async function disbandTeam(interaction: ChatInputCommandInteraction<CacheType>) 
 
   const teamRole = await guild.roles.fetch(dbTeam.roleId);
 
-  if (teamRole) 
+  if (teamRole)
     await teamRole.delete();
 
   const leader = await guild.members.fetch(dbTeam.leaderId);
